@@ -8,25 +8,27 @@ import 'package:objectdb/src/objectdb_storage_interface.dart';
 class InMemoryStorage extends StorageInterface {
   final List<Map<dynamic, dynamic>> _data = [];
 
-  Map<dynamic, dynamic> _jsonClone(Map<dynamic, dynamic> data) =>
-      jsonDecode(jsonEncode(data));
+  Map<dynamic, dynamic> _jsonClone(Map<dynamic, dynamic> data) => jsonDecode(jsonEncode(data));
 
   @override
   Future<ObjectId> insert(Map data) async {
-    var _id = ObjectId();
-    data['_id'] = _id.hexString;
+    var _id;
+    if (data.containsKey('_id')) {
+      _id = ObjectId.fromHexString(data['_id']);
+    } else {
+      _id = ObjectId();
+      data['_id'] = _id.hexString;
+    }
     // create new object
     _data.add(_jsonClone(data));
     return _id;
   }
 
   @override
-  Future<Stream<Map<dynamic, dynamic>>> find(Map query,
-      [Filter filter = Filter.all]) async {
+  Future<Stream<Map<dynamic, dynamic>>> find(Map query, [Filter filter = Filter.all]) async {
     var match = createMatcher(query);
     if (filter == Filter.all) {
-      return Stream.fromIterable(
-          _data.where(match).map<Map<dynamic, dynamic>>(_jsonClone));
+      return Stream.fromIterable(_data.where(match).map<Map<dynamic, dynamic>>(_jsonClone));
     }
     if (filter == Filter.first) {
       return Stream.fromIterable([_jsonClone(_data.firstWhere(match))]);

@@ -24,10 +24,7 @@ class IndexedDBStorage extends StorageInterface {
       }
     });
 
-    var res = await _db
-        .transaction('_', 'readonly')
-        .objectStore('_')
-        .getObject('\$objectdb');
+    var res = await _db.transaction('_', 'readonly').objectStore('_').getObject('\$objectdb');
 
     if (res == null) {
       await cleanup();
@@ -44,10 +41,7 @@ class IndexedDBStorage extends StorageInterface {
 
   @override
   Future cleanup() async {
-    await _db
-        .transaction('_', 'readwrite')
-        .objectStore('_')
-        .put(Meta(_version).toMap(), '\$objectdb');
+    await _db.transaction('_', 'readwrite').objectStore('_').put(Meta(_version).toMap(), '\$objectdb');
   }
 
   @override
@@ -55,9 +49,7 @@ class IndexedDBStorage extends StorageInterface {
     var match = createMatcher(query);
     var tx = _db.transaction('_', 'readonly');
     var cur = tx.objectStore('_').openCursor(autoAdvance: true);
-    var res = cur
-        .where((entry) => entry.key != '\$objectdb' && match(entry.value))
-        .map<Map<dynamic, dynamic>>((entry) => entry.value);
+    var res = cur.where((entry) => entry.key != '\$objectdb' && match(entry.value)).map<Map<dynamic, dynamic>>((entry) => entry.value);
 
     if (filter == Filter.last) {
       return Stream.fromIterable([await res.last]);
@@ -68,8 +60,13 @@ class IndexedDBStorage extends StorageInterface {
 
   @override
   Future<ObjectId> insert(Map data) async {
-    var _id = ObjectId();
-    data['_id'] = _id.hexString;
+    var _id;
+    if (data.containsKey('_id')) {
+      _id = ObjectId.fromHexString(data['_id']);
+    } else {
+      _id = ObjectId();
+      data['_id'] = _id.hexString;
+    }
     var tx = _db.transaction('_', 'readwrite');
     await tx.objectStore('_').add(data, _id.hexString);
     return _id;
@@ -96,8 +93,7 @@ class IndexedDBStorage extends StorageInterface {
     var i = 0;
     await cur.where((entry) => match(entry.value)).forEach((element) {
       i++;
-      element.update(
-          StorageInterface.applyUpdate(element.value, changes, replace));
+      element.update(StorageInterface.applyUpdate(element.value, changes, replace));
     });
     return i;
   }
@@ -111,8 +107,7 @@ class IndexedDBStorage extends StorageInterface {
     if (list.isEmpty) {
       return insert(changesOrData);
     } else if (list.length == 1) {
-      await list.first.update(
-          StorageInterface.applyUpdate(list.first.value, changesOrData, true));
+      await list.first.update(StorageInterface.applyUpdate(list.first.value, changesOrData, true));
       return list.first.value;
     } else {
       return null;

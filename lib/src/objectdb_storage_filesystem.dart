@@ -8,8 +8,6 @@ import 'package:objectid/objectid.dart';
 import 'package:objectdb/src/objectdb_meta.dart';
 import 'package:objectdb/src/objectdb_operators.dart';
 
-import 'objectdb_meta.dart';
-
 var lineRegex = RegExp(r'^([^{]*)({.*)');
 
 /// Stores data on file-system (dart:io-envs only)
@@ -65,8 +63,7 @@ class FileSystemStorage extends StorageInterface {
   }
 
   @override
-  Future<Stream<Map<dynamic, dynamic>>> find(Map query,
-      [Filter filter = Filter.all]) async {
+  Future<Stream<Map<dynamic, dynamic>>> find(Map query, [Filter filter = Filter.all]) async {
     switch (filter) {
       case Filter.all:
       case Filter.first:
@@ -79,8 +76,13 @@ class FileSystemStorage extends StorageInterface {
   @override
   Future<ObjectId> insert(Map data) async {
     await _raf!.setPosition(await _raf!.length());
-    var _id = ObjectId();
-    data['_id'] = _id.hexString;
+    var _id;
+    if (data.containsKey('_id')) {
+      _id = ObjectId.fromHexString(data['_id']);
+    } else {
+      _id = ObjectId();
+      data['_id'] = _id.hexString;
+    }
     _raf!.writeStringSync(jsonEncode(data) + '\n');
     return _id;
   }
@@ -99,9 +101,7 @@ class FileSystemStorage extends StorageInterface {
 
   @override
   Future<int> update(Map query, Map changes, [bool replace = false]) async {
-    var matches = (await _query(_raf!, query, reversed: true))
-        .map<ObjectId>(_getId)
-        .toList();
+    var matches = (await _query(_raf!, query, reversed: true)).map<ObjectId>(_getId).toList();
     // wait for the items before writing the changes to [_raf]
     var result = await matches;
     // no old item found, we cannot update anything.
@@ -114,24 +114,20 @@ class FileSystemStorage extends StorageInterface {
     if (replace && result.length == 1) {
       changes['_id'] = result.first.hexString;
     }
-    _raf!.writeStringSync(_toChange(
-        '~', {'q': _encode(query), 'c': _encode(changes), 'r': replace}));
+    _raf!.writeStringSync(_toChange('~', {'q': _encode(query), 'c': _encode(changes), 'r': replace}));
     return result.length;
   }
 
   @override
   Future<ObjectId?> save(Map query, Map changesOrData) async {
-    var matches = (await _query(_raf!, query, reversed: true))
-        .map<ObjectId>(_getId)
-        .toList();
+    var matches = (await _query(_raf!, query, reversed: true)).map<ObjectId>(_getId).toList();
     // wait for the items before writing the changes to [_raf]
     var result = await matches;
     if (result.isEmpty) {
       return await insert(changesOrData);
     } else if (result.length == 1) {
       changesOrData['_id'] = result.first.hexString;
-      _raf!.writeStringSync(_toChange(
-          '~', {'q': _encode(query), 'c': _encode(changesOrData), 'r': true}));
+      _raf!.writeStringSync(_toChange('~', {'q': _encode(query), 'c': _encode(changesOrData), 'r': true}));
       return result.first;
     } else {
       return null;
@@ -142,22 +138,16 @@ class FileSystemStorage extends StorageInterface {
     return type + jsonEncode(content) + '\n';
   }
 
-  Future<Stream<Map<dynamic, dynamic>>> _query(RandomAccessFile raf, Map query,
-      {reversed = false}) async {
+  Future<Stream<Map<dynamic, dynamic>>> _query(RandomAccessFile raf, Map query, {reversed = false}) async {
     var match = createMatcher(query);
-    var changes = _withLineNumber(_readLine())
-        .where((line) => line.modifier == '~' || line.modifier == '-');
+    var changes = _withLineNumber(_readLine()).where((line) => line.modifier == '~' || line.modifier == '-');
 
-    var entries =
-        _withLineNumber(_readLine()).where((entry) => entry.modifier.isEmpty);
+    var entries = _withLineNumber(_readLine()).where((entry) => entry.modifier.isEmpty);
 
-    return _applyChanges(changes, entries)
-        .map<Map<dynamic, dynamic>>((line) => line.content)
-        .where(match);
+    return _applyChanges(changes, entries).map<Map<dynamic, dynamic>>((line) => line.content).where(match);
   }
 
-  Stream<_Line> _applyChanges(
-      Stream<_Line> changes, Stream<_Line> entries) async* {
+  Stream<_Line> _applyChanges(Stream<_Line> changes, Stream<_Line> entries) async* {
     var changeList = await changes.toList();
     entryLoop:
     await for (var entry in entries) {
@@ -169,8 +159,7 @@ class FileSystemStorage extends StorageInterface {
           } else if (change.modifier == '~') {
             var match = createMatcher(_decode(change.content['q']));
             if (!match(entry.content)) continue;
-            entry.content = StorageInterface.applyUpdate(entry.content,
-                _decode(change.content['c']), change.content['r']);
+            entry.content = StorageInterface.applyUpdate(entry.content, _decode(change.content['c']), change.content['r']);
           }
         }
       }
@@ -188,8 +177,7 @@ class FileSystemStorage extends StorageInterface {
     }
   }
 
-  Stream<String> _readLine() =>
-      _readFile().transform(utf8.decoder).transform(LineSplitter());
+  Stream<String> _readLine() => _readFile().transform(utf8.decoder).transform(LineSplitter());
 
   Stream<List<int>> _readFile() async* {
     var fileSize = _raf!.lengthSync();
@@ -199,8 +187,7 @@ class FileSystemStorage extends StorageInterface {
     }
   }
 
-  ObjectId _getId(Map<dynamic, dynamic> data) =>
-      ObjectId.fromHexString(data['_id']);
+  ObjectId _getId(Map<dynamic, dynamic> data) => ObjectId.fromHexString(data['_id']);
 
   /// Replace operator enum to corresponding string
   Map _encode(Map query) {
@@ -220,12 +207,7 @@ class FileSystemStorage extends StorageInterface {
     if (value is Map) {
       return _encode(value);
     }
-    if (value is String ||
-        value is int ||
-        value is double ||
-        value is bool ||
-        value is List ||
-        value == null) {
+    if (value is String || value is int || value is double || value is bool || value is List || value == null) {
       return value;
     }
     if (value is RegExp) {
@@ -251,16 +233,10 @@ class FileSystemStorage extends StorageInterface {
 
       if (query[i] is Map) {
         prepared[key] = _decode(query[i]);
-      } else if (query[i] is int ||
-          query[i] is double ||
-          query[i] is bool ||
-          query[i] is String ||
-          query[i] is List ||
-          query[i] == null) {
+      } else if (query[i] is int || query[i] is double || query[i] is bool || query[i] is String || query[i] is List || query[i] == null) {
         prepared[key] = query[i];
       } else {
-        throw ArgumentError(
-            "Query contains invalid data type '${query[i]?.runtimeType}'");
+        throw ArgumentError("Query contains invalid data type '${query[i]?.runtimeType}'");
       }
     }
     return prepared;
