@@ -61,7 +61,7 @@ class IndexedDBStorage extends StorageInterface {
   @override
   Future<ObjectId> insert(Map data) async {
     var _id;
-    if (data.containsKey('_id')) {
+    if (data.containsKey('_id') && data['_id'] != null && data['_id'].runtimeType == String) {
       _id = ObjectId.fromHexString(data['_id']);
     } else {
       _id = ObjectId();

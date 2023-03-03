@@ -77,7 +77,7 @@ class FileSystemStorage extends StorageInterface {
   Future<ObjectId> insert(Map data) async {
     await _raf!.setPosition(await _raf!.length());
     var _id;
-    if (data.containsKey('_id')) {
+    if (data.containsKey('_id') && data['_id'] != null && data['_id'].runtimeType == String) {
       _id = ObjectId.fromHexString(data['_id']);
     } else {
       _id = ObjectId();
